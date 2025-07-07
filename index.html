@@ -1,0 +1,2370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FocusForge - Distraction Blocker</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCQv_3P8aQIQiZgiDxPNo1hMA5be0mPkts",
+            authDomain: "focusforge-85ef2.firebaseapp.com",
+            projectId: "focusforge-85ef2",
+            storageBucket: "focusforge-85ef2.firebasestorage.app",
+            messagingSenderId: "881839145551",
+            appId: "1:881839145551:web:37859eb54c018979ada03a",
+            measurementId: "G-WW0NY7GXKS"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        window.firebaseAuth = auth;
+        window.firebaseDb = db;
+        window.googleProvider = provider;
+        window.firebaseUtils = {
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signInWithPopup,
+            signOut,
+            onAuthStateChanged,
+            doc,
+            setDoc,
+            getDoc,
+            updateDoc
+        };
+    </script>
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --accent-color: #f093fb;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
+            --info-color: #3b82f6;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .forge-gradient {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        }
+
+        .forge-glow {
+            box-shadow: 0 0 30px rgba(102, 126, 234, 0.4);
+            transition: box-shadow 0.3s ease;
+        }
+
+        .forge-glow:hover {
+            box-shadow: 0 0 40px rgba(102, 126, 234, 0.6);
+        }
+
+        .screen {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .timer-circle {
+            stroke-dasharray: 628;
+            stroke-dashoffset: 628;
+            transition: stroke-dashoffset 1s linear;
+            filter: drop-shadow(0 0 10px rgba(147, 51, 234, 0.5));
+        }
+
+        .xp-bar {
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+        }
+
+        .achievement-unlock {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { 
+                opacity: 1; 
+                transform: scale(1);
+            }
+            50% { 
+                opacity: 0.8; 
+                transform: scale(1.05);
+            }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .modal.active {
+            display: flex;
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from { transform: translateY(-50px) scale(0.9); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 20px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            z-index: 1001;
+            transform: translateX(120%);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            background: linear-gradient(135deg, var(--success-color), #059669);
+        }
+
+        .notification.error {
+            background: linear-gradient(135deg, var(--error-color), #dc2626);
+        }
+
+        .notification.warning {
+            background: linear-gradient(135deg, var(--warning-color), #d97706);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        .nav-btn {
+            transition: all 0.3s ease;
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-btn:hover {
+            background: rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .nav-btn.active {
+            color: var(--primary-color);
+            background: rgba(102, 126, 234, 0.2);
+        }
+
+        .nav-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .nav-btn:hover::before {
+            left: 100%;
+        }
+
+        .glass-card {
+            background: rgba(31, 41, 55, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn-primary:hover::before {
+            left: 100%;
+        }
+
+        .btn-secondary {
+            background: rgba(75, 85, 99, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(75, 85, 99, 1);
+            transform: translateY(-1px);
+        }
+
+        .input-field {
+            background: rgba(31, 41, 55, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: rgba(31, 41, 55, 0.9);
+        }
+
+        .progress-ring {
+            transform: rotate(-90deg);
+            filter: drop-shadow(0 0 10px rgba(147, 51, 234, 0.5));
+        }
+
+        .floating-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(102, 126, 234, 0.3);
+            border-radius: 50%;
+            animation: float 6s infinite linear;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, rgba(31, 41, 55, 0.8), rgba(17, 24, 39, 0.8));
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+        }
+
+        .achievement-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .achievement-card:hover {
+            transform: scale(1.05);
+        }
+
+        .achievement-card.unlocked {
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2));
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+
+        .timer-controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .timer-controls button {
+            flex: 1;
+            min-width: 120px;
+        }
+
+        @media (max-width: 640px) {
+            .timer-controls {
+                flex-direction: column;
+            }
+            
+            .timer-controls button {
+                width: 100%;
+            }
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #374151;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .motivational-quote {
+            font-style: italic;
+            opacity: 0.8;
+            text-align: center;
+            margin: 20px 0;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        .focus-session-bg {
+            background: radial-gradient(circle at center, rgba(102, 126, 234, 0.1) 0%, transparent 70%);
+        }
+
+        .ripple-effect {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ripple-effect::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .ripple-effect:active::after {
+            width: 300px;
+            height: 300px;
+        }
+
+        .error-message {
+            color: var(--error-color);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+
+        .success-message {
+            color: var(--success-color);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+    <!-- Floating Particles Background -->
+    <div class="floating-particles" id="particles"></div>
+
+    <div class="container mx-auto px-4 max-w-md relative">
+        <!-- Navigation -->
+        <nav class="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md bg-gray-800 bg-opacity-90 backdrop-filter backdrop-blur-lg border-t border-gray-700 z-50 rounded-t-2xl">
+            <div class="flex justify-around py-3">
+                <button onclick="showScreen('home')" class="nav-btn flex flex-col items-center p-3" data-screen="home">
+                    <i class="fas fa-home text-xl mb-1"></i>
+                    <span class="text-xs font-medium">Home</span>
+                </button>
+                <button onclick="showScreen('focus')" class="nav-btn flex flex-col items-center p-3" data-screen="focus">
+                    <i class="fas fa-play text-xl mb-1"></i>
+                    <span class="text-xs font-medium">Focus</span>
+                </button>
+                <button onclick="showScreen('stats')" class="nav-btn flex flex-col items-center p-3" data-screen="stats">
+                    <i class="fas fa-chart-bar text-xl mb-1"></i>
+                    <span class="text-xs font-medium">Stats</span>
+                </button>
+                <button onclick="showScreen('blocker')" class="nav-btn flex flex-col items-center p-3" data-screen="blocker">
+                    <i class="fas fa-shield-alt text-xl mb-1"></i>
+                    <span class="text-xs font-medium">Blocker</span>
+                </button>
+                <button onclick="showScreen('profile')" class="nav-btn flex flex-col items-center p-3" data-screen="profile">
+                    <i class="fas fa-user text-xl mb-1"></i>
+                    <span class="text-xs font-medium">Profile</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Auth Screen -->
+        <div id="auth-screen" class="screen active min-h-screen flex flex-col justify-center items-center p-6">
+            <div class="w-full max-w-sm">
+                <div class="text-center mb-8">
+                    <div class="relative">
+                        <i class="fas fa-fire text-6xl text-purple-400 mb-4 forge-glow"></i>
+                        <div class="absolute inset-0 animate-ping">
+                            <i class="fas fa-fire text-6xl text-purple-400 opacity-20"></i>
+                        </div>
+                    </div>
+                    <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">FocusForge</h1>
+                    <p class="text-gray-400 text-lg">Forge Your Focus. Block the Noise.</p>
+                </div>
+
+                <!-- Sign In Form -->
+                <div id="signin-form" class="glass-card p-6 rounded-2xl">
+                    <h2 class="text-2xl font-bold mb-6 text-center">Welcome Back</h2>
+                    <form id="signin-form-element">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Email Address</label>
+                            <input type="email" id="signin-email" placeholder="Enter your email" class="input-field w-full p-3 rounded-lg focus:outline-none" required>
+                            <div class="error-message" id="signin-email-error"></div>
+                        </div>
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium mb-2">Password</label>
+                            <input type="password" id="signin-password" placeholder="Enter your password" class="input-field w-full p-3 rounded-lg focus:outline-none" required>
+                            <div class="error-message" id="signin-password-error"></div>
+                        </div>
+                        <button type="submit" class="btn-primary ripple-effect w-full text-white p-3 rounded-lg font-semibold mb-4">
+                            <span id="signin-btn-text">Sign In</span>
+                            <div class="loading-spinner hidden" id="signin-spinner"></div>
+                        </button>
+                    </form>
+                    <div class="relative my-6">
+                        <div class="absolute inset-0 flex items-center">
+                            <div class="w-full border-t border-gray-600"></div>
+                        </div>
+                        <div class="relative flex justify-center text-sm">
+                            <span class="px-2 bg-gray-800 text-gray-400">Or continue with</span>
+                        </div>
+                    </div>
+                    <button onclick="signInWithGoogle()" class="w-full bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 transition duration-200 mb-4 ripple-effect">
+                        <i class="fab fa-google mr-2"></i>Google
+                    </button>
+                    <p class="text-center text-gray-400">
+                        Don't have an account? 
+                        <button onclick="toggleAuthForm()" class="text-purple-400 hover:text-purple-300 font-semibold">Sign Up</button>
+                    </p>
+                </div>
+
+                <!-- Sign Up Form -->
+                <div id="signup-form" class="glass-card p-6 rounded-2xl hidden">
+                    <h2 class="text-2xl font-bold mb-6 text-center">Create Account</h2>
+                    <form id="signup-form-element">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Email Address</label>
+                            <input type="email" id="signup-email" placeholder="Enter your email" class="input-field w-full p-3 rounded-lg focus:outline-none" required>
+                            <div class="error-message" id="signup-email-error"></div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Password</label>
+                            <input type="password" id="signup-password" placeholder="Create a password" class="input-field w-full p-3 rounded-lg focus:outline-none" required>
+                            <div class="error-message" id="signup-password-error"></div>
+                        </div>
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium mb-2">Confirm Password</label>
+                            <input type="password" id="signup-confirm-password" placeholder="Confirm your password" class="input-field w-full p-3 rounded-lg focus:outline-none" required>
+                            <div class="error-message" id="signup-confirm-error"></div>
+                        </div>
+                        <button type="submit" class="btn-primary ripple-effect w-full text-white p-3 rounded-lg font-semibold mb-4">
+                            <span id="signup-btn-text">Create Account</span>
+                            <div class="loading-spinner hidden" id="signup-spinner"></div>
+                        </button>
+                    </form>
+                    <div class="relative my-6">
+                        <div class="absolute inset-0 flex items-center">
+                            <div class="w-full border-t border-gray-600"></div>
+                        </div>
+                        <div class="relative flex justify-center text-sm">
+                            <span class="px-2 bg-gray-800 text-gray-400">Or continue with</span>
+                        </div>
+                    </div>
+                    <button onclick="signInWithGoogle()" class="w-full bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 transition duration-200 mb-4 ripple-effect">
+                        <i class="fab fa-google mr-2"></i>Google
+                    </button>
+                    <p class="text-center text-gray-400">
+                        Already have an account? 
+                        <button onclick="toggleAuthForm()" class="text-purple-400 hover:text-purple-300 font-semibold">Sign In</button>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Home Screen -->
+        <div id="home-screen" class="screen min-h-screen py-6 pb-24">
+            <div class="text-center mb-8">
+                <div class="relative">
+                    <i class="fas fa-fire text-6xl text-purple-400 mb-4 forge-glow"></i>
+                </div>
+                <h1 class="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">FocusForge</h1>
+                <p class="text-gray-400">Welcome back, <span id="user-name" class="text-purple-400 font-semibold">Forger</span>!</p>
+            </div>
+
+            <!-- XP Progress -->
+            <div class="glass-card p-6 rounded-2xl mb-6">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-sm font-medium text-gray-300">Level <span id="user-level" class="text-purple-400 font-bold">1</span></span>
+                    <span class="text-sm font-medium text-gray-300"><span id="current-xp" class="text-green-400 font-bold">0</span> / <span id="next-level-xp">100</span> XP</span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-4 mb-4 overflow-hidden">
+                    <div id="xp-progress" class="xp-bar h-4 rounded-full" style="width: 0%"></div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="text-center p-3 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl">
+                        <div class="text-white text-2xl font-bold" id="streak-count">0</div>
+                        <div class="text-xs text-orange-100 font-medium">Day Streak</div>
+                        <i class="fas fa-fire text-orange-200 mt-1"></i>
+                    </div>
+                    <div class="text-center p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl">
+                        <div class="text-white text-2xl font-bold" id="total-focus-time">0h</div>
+                        <div class="text-xs text-green-100 font-medium">Total Focus</div>
+                        <i class="fas fa-clock text-green-200 mt-1"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Focus Timer -->
+            <div class="glass-card p-6 rounded-2xl text-center mb-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center justify-center">
+                    <i class="fas fa-stopwatch mr-2 text-purple-400"></i>
+                    Focus Timer
+                </h2>
+                <div class="relative w-40 h-40 mx-auto mb-6">
+                    <svg class="w-full h-full progress-ring">
+                        <circle cx="80" cy="80" r="70" stroke="currentColor" stroke-width="6" fill="none" class="text-gray-600"></circle>
+                        <circle cx="80" cy="80" r="70" stroke="currentColor" stroke-width="6" fill="none" class="text-purple-400 timer-circle"></circle>
+                    </svg>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <div class="text-center">
+                            <div class="text-3xl font-bold" id="timer-display">25:00</div>
+                            <div class="text-xs text-gray-400 font-medium">minutes</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <button onclick="startFocus()" class="btn-primary ripple-effect w-full text-white p-4 rounded-xl font-semibold">
+                        <i class="fas fa-play mr-2"></i>Start Focus Session
+                    </button>
+                    <button onclick="showScreen('blocker')" class="w-full bg-red-600 text-white p-4 rounded-xl hover:bg-red-700 transition duration-200 font-semibold ripple-effect">
+                        <i class="fas fa-shield-alt mr-2"></i>Block Distractions
+                    </button>
+                </div>
+            </div>
+
+            <!-- Daily Challenge -->
+            <div class="glass-card p-6 rounded-2xl">
+                <h3 class="text-lg font-bold mb-4 flex items-center">
+                    <i class="fas fa-trophy mr-2 text-yellow-400"></i>
+                    Daily Challenge
+                </h3>
+                <div class="bg-gradient-to-r from-purple-600 to-pink-600 p-4 rounded-xl">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="font-semibold text-white" id="daily-challenge-text">Complete 3 focus sessions</div>
+                            <div class="text-sm text-purple-100 flex items-center mt-1">
+                                <i class="fas fa-gift mr-1"></i>
+                                Reward: 50 XP
+                            </div>
+                        </div>
+                        <button onclick="claimDailyReward()" id="claim-daily-btn" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-semibold ripple-effect">
+                            Claim
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Focus Session Screen -->
+        <div id="focus-screen" class="screen min-h-screen flex flex-col justify-center items-center p-6 focus-session-bg">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">Focus Mode</h1>
+                <p class="text-gray-400">Stay focused and block distractions</p>
+            </div>
+
+            <!-- Large Timer -->
+            <div class="relative w-72 h-72 mx-auto mb-8">
+                <svg class="w-full h-full progress-ring">
+                    <circle cx="144" cy="144" r="130" stroke="currentColor" stroke-width="8" fill="none" class="text-gray-600"></circle>
+                    <circle cx="144" cy="144" r="130" stroke="currentColor" stroke-width="8" fill="none" class="text-purple-400 timer-circle" id="focus-timer-circle"></circle>
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <div class="text-center">
+                        <div class="text-6xl font-bold mb-2" id="focus-timer-display">25:00</div>
+                        <div class="text-sm text-gray-400 font-medium">remaining</div>
+                        <div class="text-xs text-purple-400 mt-2" id="session-type">Pomodoro Session</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="w-full max-w-sm">
+                <div class="timer-controls mb-6">
+                    <button onclick="pauseTimer()" id="pause-btn" class="bg-yellow-600 text-white p-3 rounded-xl hover:bg-yellow-700 transition duration-200 font-semibold ripple-effect">
+                        <i class="fas fa-pause mr-2"></i>Pause
+                    </button>
+                    <button onclick="resumeTimer()" id="resume-btn" class="bg-green-600 text-white p-3 rounded-xl hover:bg-green-700 transition duration-200 font-semibold ripple-effect hidden">
+                        <i class="fas fa-play mr-2"></i>Resume
+                    </button>
+                    <button onclick="skipSession()" class="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition duration-200 font-semibold ripple-effect">
+                        <i class="fas fa-forward mr-2"></i>Skip
+                    </button>
+                </div>
+                <button onclick="showExitModal()" class="w-full bg-red-600 text-white p-3 rounded-xl hover:bg-red-700 transition duration-200 font-semibold ripple-effect">
+                    <i class="fas fa-times mr-2"></i>Emergency Exit
+                </button>
+            </div>
+
+            <!-- Motivational Message -->
+            <div class="mt-8 text-center max-w-sm">
+                <div class="motivational-quote" id="motivational-message">
+                    "You're doing great! Stay focused!"
+                </div>
+                <div class="flex justify-center space-x-4 mt-4 text-sm text-gray-400">
+                    <span><i class="fas fa-brain mr-1"></i>Deep Work</span>
+                    <span><i class="fas fa-target mr-1"></i>Focused</span>
+                    <span><i class="fas fa-rocket mr-1"></i>Productive</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Screen -->
+        <div id="stats-screen" class="screen min-h-screen py-6 pb-24">
+            <h1 class="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">Statistics</h1>
+
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="stats-card p-4 rounded-xl text-center">
+                    <div class="text-2xl font-bold text-purple-400 mb-1" id="stats-total-sessions">0</div>
+                    <div class="text-sm text-gray-400 font-medium">Total Sessions</div>
+                    <i class="fas fa-play-circle text-purple-300 mt-2"></i>
+                </div>
+                <div class="stats-card p-4 rounded-xl text-center">
+                    <div class="text-2xl font-bold text-green-400 mb-1" id="stats-total-time">0h</div>
+                    <div class="text-sm text-gray-400 font-medium">Total Time</div>
+                    <i class="fas fa-clock text-green-300 mt-2"></i>
+                </div>
+                <div class="stats-card p-4 rounded-xl text-center">
+                    <div class="text-2xl font-bold text-orange-400 mb-1" id="stats-current-streak">0</div>
+                    <div class="text-sm text-gray-400 font-medium">Current Streak</div>
+                    <i class="fas fa-fire text-orange-300 mt-2"></i>
+                </div>
+                <div class="stats-card p-4 rounded-xl text-center">
+                    <div class="text-2xl font-bold text-blue-400 mb-1" id="stats-level">1</div>
+                    <div class="text-sm text-gray-400 font-medium">Level</div>
+                    <i class="fas fa-star text-blue-300 mt-2"></i>
+                </div>
+            </div>
+
+            <!-- Chart Toggle -->
+            <div class="flex glass-card rounded-xl p-1 mb-6">
+                <button onclick="showChart('daily')" id="daily-chart-btn" class="flex-1 py-3 px-4 rounded-lg btn-primary text-white transition duration-200 font-semibold">
+                    Daily
+                </button>
+                <button onclick="showChart('weekly')" id="weekly-chart-btn" class="flex-1 py-3 px-4 rounded-lg text-gray-400 hover:text-white transition duration-200 font-semibold">
+                    Weekly
+                </button>
+            </div>
+
+            <!-- Chart Container -->
+            <div class="glass-card p-6 rounded-2xl mb-6">
+                <h3 class="text-lg font-bold mb-4 flex items-center" id="chart-title">
+                    <i class="fas fa-chart-line mr-2 text-purple-400"></i>
+                    Daily Focus Time
+                </h3>
+                <div class="chart-container">
+                    <canvas id="stats-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Achievements -->
+            <div class="glass-card p-6 rounded-2xl">
+                <h3 class="text-lg font-bold mb-4 flex items-center">
+                    <i class="fas fa-trophy mr-2 text-yellow-400"></i>
+                    Achievements
+                </h3>
+                <div class="grid grid-cols-3 gap-4" id="achievements-grid">
+                    <!-- Achievements will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Blocker Screen -->
+        <div id="blocker-screen" class="screen min-h-screen py-6 pb-24">
+            <h1 class="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">Distraction Blocker</h1>
+
+            <!-- Blocker Status -->
+            <div class="glass-card p-6 rounded-2xl mb-6 text-center">
+                <div class="mb-4">
+                    <i class="fas fa-shield-alt text-6xl text-red-400 forge-glow" id="blocker-icon"></i>
+                </div>
+                <h2 class="text-xl font-bold mb-2" id="blocker-status">Blocker Inactive</h2>
+                <p class="text-gray-400 mb-4" id="blocker-description">Enable blocker to restrict access to distracting websites</p>
+                <button onclick="toggleBlocker()" id="blocker-toggle" class="bg-red-600 text-white px-8 py-4 rounded-xl hover:bg-red-700 transition duration-200 font-semibold ripple-effect">
+                    Enable Blocker
+                </button>
+            </div>
+
+            <!-- Blocked Websites List -->
+            <div class="glass-card p-6 rounded-2xl mb-6">
+                <h3 class="text-lg font-bold mb-4 flex items-center">
+                    <i class="fas fa-ban mr-2 text-red-400"></i>
+                    Blocked Websites
+                </h3>
+                <div class="space-y-3 mb-4" id="blocked-websites-list">
+                    <!-- Blocked websites will be populated by JavaScript -->
+                </div>
+                <div class="flex space-x-3">
+                    <input type="text" id="new-website-input" placeholder="Enter website URL (e.g., example.com)" class="input-field flex-1 p-3 rounded-lg focus:outline-none">
+                    <button onclick="addBlockedWebsite()" class="btn-primary text-white px-6 py-3 rounded-lg font-semibold ripple-effect">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div class="mt-3 text-sm text-gray-400">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Enter domain names without http:// or https:// (e.g., youtube.com, facebook.com)
+                </div>
+            </div>
+
+            <!-- Schedule Blocker -->
+            <div class="glass-card p-6 rounded-2xl">
+                <h3 class="text-lg font-bold mb-4 flex items-center">
+                    <i class="fas fa-calendar-alt mr-2 text-blue-400"></i>
+                    Schedule Blocker
+                </h3>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between p-3 bg-gray-700 bg-opacity-50 rounded-lg">
+                        <div>
+                            <span class="font-medium">Work Hours</span>
+                            <div class="text-sm text-gray-400">9:00 AM - 5:00 PM</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="work-hours-toggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-700 bg-opacity-50 rounded-lg">
+                        <div>
+                            <span class="font-medium">Study Time</span>
+                            <div class="text-sm text-gray-400">7:00 PM - 10:00 PM</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="study-hours-toggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Screen -->
+        <div id="profile-screen" class="screen min-h-screen py-6 pb-24">
+            <h1 class="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">Profile</h1>
+
+            <!-- User Info -->
+            <div class="glass-card p-6 rounded-2xl mb-6 text-center">
+                <div class="w-24 h-24 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4 forge-glow">
+                    <i class="fas fa-user text-4xl text-white"></i>
+                </div>
+                <h2 class="text-xl font-bold mb-2" id="profile-name">Focus Forger</h2>
+                <p class="text-gray-400 mb-4" id="profile-email">user@example.com</p>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="text-center p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl">
+                        <div class="text-2xl font-bold text-white mb-1" id="profile-level">1</div>
+                        <div class="text-xs text-purple-100 font-medium">Level</div>
+                    </div>
+                    <div class="text-center p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-xl">
+                        <div class="text-2xl font-bold text-white mb-1" id="profile-xp">0</div>
+                        <div class="text-xs text-green-100 font-medium">XP</div>
+                    </div>
+                    <div class="text-center p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl">
+                        <div class="text-2xl font-bold text-white mb-1" id="profile-streak">0</div>
+                        <div class="text-xs text-orange-100 font-medium">Streak</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="glass-card p-6 rounded-2xl mb-6">
+                <h3 class="text-lg font-bold mb-4 flex items-center">
+                    <i class="fas fa-cog mr-2 text-gray-400"></i>
+                    Settings
+                </h3>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between p-3 bg-gray-700 bg-opacity-50 rounded-lg">
+                        <span class="font-medium">Theme</span>
+                        <select id="theme-select" class="input-field p-2 rounded-lg text-sm">
+                            <option value="dark">Dark</option>
+                            <option value="light">Light</option>
+                            <option value="high-contrast">High Contrast</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-700 bg-opacity-50 rounded-lg">
+                        <span class="font-medium">Notifications</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="notifications-toggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-700 bg-opacity-50 rounded-lg">
+                        <span class="font-medium">Sound Effects</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="sound-toggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-700 bg-opacity-50 rounded-lg">
+                        <span class="font-medium">Motivational Style</span>
+                        <select id="motivation-select" class="input-field p-2 rounded-lg text-sm">
+                            <option value="zen">Zen</option>
+                            <option value="warrior">Warrior</option>
+                            <option value="minimalist">Minimalist</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="space-y-3">
+                <button onclick="exportData()" class="w-full bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition duration-200 font-semibold ripple-effect">
+                    <i class="fas fa-download mr-2"></i>Export Data
+                </button>
+                <button onclick="resetProgress()" class="w-full bg-red-600 text-white p-4 rounded-xl hover:bg-red-700 transition duration-200 font-semibold ripple-effect">
+                    <i class="fas fa-refresh mr-2"></i>Reset Progress
+                </button>
+                <button onclick="signOutUser()" class="w-full btn-secondary text-white p-4 rounded-xl font-semibold ripple-effect">
+                    <i class="fas fa-sign-out-alt mr-2"></i>Sign Out
+                </button>
+            </div>
+        </div>
+
+        <!-- Exit Confirmation Modal -->
+        <div id="exit-modal" class="modal">
+            <div class="flex items-center justify-center w-full h-full p-4">
+                <div class="modal-content glass-card p-6 rounded-2xl max-w-sm w-full">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-exclamation-triangle text-4xl text-yellow-400 mb-3"></i>
+                        <h3 class="text-xl font-bold mb-2">Exit Focus Session?</h3>
+                        <p class="text-gray-400">Are you sure you want to exit? You'll lose your current progress.</p>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button onclick="cancelExit()" class="flex-1 btn-secondary text-white p-3 rounded-lg font-semibold ripple-effect">
+                            Cancel
+                        </button>
+                        <button onclick="confirmExit()" class="flex-1 bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 transition duration-200 font-semibold ripple-effect">
+                            Exit
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- XP Gain Modal -->
+        <div id="xp-modal" class="modal">
+            <div class="flex items-center justify-center w-full h-full p-4">
+                <div class="modal-content glass-card p-6 rounded-2xl max-w-sm w-full text-center">
+                    <div class="relative mb-4">
+                        <i class="fas fa-fire text-6xl text-purple-400 forge-glow"></i>
+                        <div class="absolute inset-0 animate-ping">
+                            <i class="fas fa-fire text-6xl text-purple-400 opacity-20"></i>
+                        </div>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-2">Session Complete!</h3>
+                    <p class="text-gray-400 mb-4">You earned <span id="xp-gained" class="text-purple-400 font-bold text-xl">25 XP</span></p>
+                    <div class="mb-4" id="level-up-message" style="display: none;">
+                        <div class="bg-gradient-to-r from-yellow-400 to-orange-400 text-black p-3 rounded-lg font-bold">
+                            🎉 Level Up! 🎉
+                        </div>
+                    </div>
+                    <button onclick="closeXpModal()" class="btn-primary text-white px-8 py-3 rounded-lg font-semibold ripple-effect">
+                        Continue
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification -->
+        <div id="notification" class="notification">
+            <span id="notification-text"></span>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentScreen = 'auth';
+        let currentUser = null;
+        let focusTimer = null;
+        let timeRemaining = 1500; // 25 minutes in seconds
+        let isTimerRunning = false;
+        let isPaused = false;
+        let currentChart = null;
+        let blockerActive = false;
+        let motivationalMessages = {
+            zen: [
+                "Breathe deeply and focus within.",
+                "Find peace in the present moment.",
+                "Let go of distractions, embrace clarity.",
+                "Your mind is calm, your focus is sharp.",
+                "In stillness, you find strength."
+            ],
+            warrior: [
+                "Conquer your distractions like a warrior!",
+                "Victory belongs to the focused!",
+                "Fight through the noise, claim your focus!",
+                "You are unstoppable when focused!",
+                "Channel your inner warrior spirit!"
+            ],
+            minimalist: [
+                "Less distraction, more focus.",
+                "Simplicity breeds clarity.",
+                "Focus on what truly matters.",
+                "Clear mind, clear path.",
+                "Eliminate the unnecessary."
+            ]
+        };
+
+        // User data structure
+        let userData = {
+            xp: 0,
+            level: 1,
+            streak: 0,
+            totalSessions: 0,
+            totalFocusTime: 0,
+            dailyFocusTime: {},
+            weeklyFocusTime: {},
+            achievements: [],
+            blockedWebsites: ['instagram.com', 'facebook.com', 'twitter.com', 'youtube.com', 'tiktok.com', 'reddit.com', 'netflix.com'],
+            lastActiveDate: null,
+            dailyChallengeCompleted: false,
+            settings: {
+                theme: 'dark',
+                notifications: true,
+                soundEffects: true,
+                motivationalStyle: 'zen'
+            }
+        };
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            loadUserData();
+            updateUI();
+            setupEventListeners();
+            initializeFirebase();
+            createFloatingParticles();
+            setupFormValidation();
+        });
+
+        function createFloatingParticles() {
+            const particlesContainer = document.getElementById('particles');
+            const particleCount = 20;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 6 + 's';
+                particle.style.animationDuration = (6 + Math.random() * 4) + 's';
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        function setupFormValidation() {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            
+            // Real-time validation for sign-in form
+            document.getElementById('signin-email').addEventListener('blur', function() {
+                const email = this.value;
+                const errorElement = document.getElementById('signin-email-error');
+                
+                if (!email) {
+                    showFieldError(errorElement, 'Email is required');
+                } else if (!emailRegex.test(email)) {
+                    showFieldError(errorElement, 'Please enter a valid email');
+                } else {
+                    hideFieldError(errorElement);
+                }
+            });
+
+            document.getElementById('signin-password').addEventListener('blur', function() {
+                const password = this.value;
+                const errorElement = document.getElementById('signin-password-error');
+                
+                if (!password) {
+                    showFieldError(errorElement, 'Password is required');
+                } else if (password.length < 6) {
+                    showFieldError(errorElement, 'Password must be at least 6 characters');
+                } else {
+                    hideFieldError(errorElement);
+                }
+            });
+
+            // Real-time validation for sign-up form
+            document.getElementById('signup-email').addEventListener('blur', function() {
+                const email = this.value;
+                const errorElement = document.getElementById('signup-email-error');
+                
+                if (!email) {
+                    showFieldError(errorElement, 'Email is required');
+                } else if (!emailRegex.test(email)) {
+                    showFieldError(errorElement, 'Please enter a valid email');
+                } else {
+                    hideFieldError(errorElement);
+                }
+            });
+
+            document.getElementById('signup-password').addEventListener('blur', function() {
+                const password = this.value;
+                const errorElement = document.getElementById('signup-password-error');
+                
+                if (!password) {
+                    showFieldError(errorElement, 'Password is required');
+                } else if (password.length < 6) {
+                    showFieldError(errorElement, 'Password must be at least 6 characters');
+                } else {
+                    hideFieldError(errorElement);
+                }
+            });
+
+            document.getElementById('signup-confirm-password').addEventListener('blur', function() {
+                const password = document.getElementById('signup-password').value;
+                const confirmPassword = this.value;
+                const errorElement = document.getElementById('signup-confirm-error');
+                
+                if (!confirmPassword) {
+                    showFieldError(errorElement, 'Please confirm your password');
+                } else if (password !== confirmPassword) {
+                    showFieldError(errorElement, 'Passwords do not match');
+                } else {
+                    hideFieldError(errorElement);
+                }
+            });
+        }
+
+        function showFieldError(element, message) {
+            element.textContent = message;
+            element.style.display = 'block';
+        }
+
+        function hideFieldError(element) {
+            element.style.display = 'none';
+        }
+
+        function initializeFirebase() {
+            window.firebaseUtils.onAuthStateChanged(window.firebaseAuth, (user) => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('user-name').textContent = user.displayName || user.email.split('@')[0];
+                    document.getElementById('profile-name').textContent = user.displayName || 'Focus Forger';
+                    document.getElementById('profile-email').textContent = user.email;
+                    loadUserDataFromFirestore();
+                    showScreen('home');
+                } else {
+                    currentUser = null;
+                    showScreen('auth');
+                }
+            });
+        }
+
+        function setupEventListeners() {
+            // Sign in form
+            document.getElementById('signin-form-element').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const email = document.getElementById('signin-email').value;
+                const password = document.getElementById('signin-password').value;
+                
+                if (validateForm('signin')) {
+                    signInUser(email, password);
+                }
+            });
+
+            // Sign up form
+            document.getElementById('signup-form-element').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const email = document.getElementById('signup-email').value;
+                const password = document.getElementById('signup-password').value;
+                const confirmPassword = document.getElementById('signup-confirm-password').value;
+                
+                if (validateForm('signup')) {
+                    signUpUser(email, password);
+                }
+            });
+
+            // Navigation
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+
+            // Settings listeners
+            document.getElementById('theme-select').addEventListener('change', function() {
+                userData.settings.theme = this.value;
+                saveUserData();
+                saveUserDataToFirestore();
+            });
+
+            document.getElementById('notifications-toggle').addEventListener('change', function() {
+                userData.settings.notifications = this.checked;
+                saveUserData();
+                saveUserDataToFirestore();
+            });
+
+            document.getElementById('sound-toggle').addEventListener('change', function() {
+                userData.settings.soundEffects = this.checked;
+                saveUserData();
+                saveUserDataToFirestore();
+            });
+
+            document.getElementById('motivation-select').addEventListener('change', function() {
+                userData.settings.motivationalStyle = this.value;
+                saveUserData();
+                saveUserDataToFirestore();
+            });
+        }
+
+        function validateForm(formType) {
+            let isValid = true;
+            
+            if (formType === 'signin') {
+                const email = document.getElementById('signin-email').value;
+                const password = document.getElementById('signin-password').value;
+                
+                if (!email || !password) {
+                    showNotification('Please fill in all fields', 'error');
+                    isValid = false;
+                }
+            } else if (formType === 'signup') {
+                const email = document.getElementById('signup-email').value;
+                const password = document.getElementById('signup-password').value;
+                const confirmPassword = document.getElementById('signup-confirm-password').value;
+                
+                if (!email || !password || !confirmPassword) {
+                    showNotification('Please fill in all fields', 'error');
+                    isValid = false;
+                } else if (password !== confirmPassword) {
+                    showNotification('Passwords do not match', 'error');
+                    isValid = false;
+                } else if (password.length < 6) {
+                    showNotification('Password must be at least 6 characters', 'error');
+                    isValid = false;
+                }
+            }
+            
+            return isValid;
+        }
+
+        // Authentication functions
+        function toggleAuthForm() {
+            const signInForm = document.getElementById('signin-form');
+            const signUpForm = document.getElementById('signup-form');
+            
+            if (signInForm.classList.contains('hidden')) {
+                signInForm.classList.remove('hidden');
+                signUpForm.classList.add('hidden');
+            } else {
+                signInForm.classList.add('hidden');
+                signUpForm.classList.remove('hidden');
+            }
+        }
+
+        async function signUpUser(email, password) {
+            const btnText = document.getElementById('signup-btn-text');
+            const spinner = document.getElementById('signup-spinner');
+            
+            btnText.style.display = 'none';
+            spinner.classList.remove('hidden');
+            
+            try {
+                const userCredential = await window.firebaseUtils.createUserWithEmailAndPassword(window.firebaseAuth, email, password);
+                await initializeUserData(userCredential.user);
+                showNotification('Account created successfully!', 'success');
+            } catch (error) {
+                showNotification(getFirebaseErrorMessage(error.code), 'error');
+            } finally {
+                btnText.style.display = 'inline';
+                spinner.classList.add('hidden');
+            }
+        }
+
+        async function signInUser(email, password) {
+            const btnText = document.getElementById('signin-btn-text');
+            const spinner = document.getElementById('signin-spinner');
+            
+            btnText.style.display = 'none';
+            spinner.classList.remove('hidden');
+            
+            try {
+                const userCredential = await window.firebaseUtils.signInWithEmailAndPassword(window.firebaseAuth, email, password);
+                showNotification('Welcome back!', 'success');
+            } catch (error) {
+                showNotification(getFirebaseErrorMessage(error.code), 'error');
+            } finally {
+                btnText.style.display = 'inline';
+                spinner.classList.add('hidden');
+            }
+        }
+
+        async function signInWithGoogle() {
+            try {
+                const result = await window.firebaseUtils.signInWithPopup(window.firebaseAuth, window.googleProvider);
+                const user = result.user;
+                
+                // Check if this is a new user and initialize data
+                const userDoc = await window.firebaseUtils.getDoc(window.firebaseUtils.doc(window.firebaseDb, 'users', user.uid));
+                if (!userDoc.exists()) {
+                    await initializeUserData(user);
+                }
+                
+                showNotification('Welcome!', 'success');
+            } catch (error) {
+                showNotification(getFirebaseErrorMessage(error.code), 'error');
+            }
+        }
+
+        function getFirebaseErrorMessage(errorCode) {
+            const errorMessages = {
+                'auth/user-not-found': 'No account found with this email',
+                'auth/wrong-password': 'Incorrect password',
+                'auth/email-already-in-use': 'An account with this email already exists',
+                'auth/weak-password': 'Password should be at least 6 characters',
+                'auth/invalid-email': 'Please enter a valid email address',
+                'auth/too-many-requests': 'Too many failed attempts. Please try again later',
+                'auth/network-request-failed': 'Network error. Please check your connection'
+            };
+            
+            return errorMessages[errorCode] || 'An error occurred. Please try again.';
+        }
+
+        async function signOutUser() {
+            try {
+                await window.firebaseUtils.signOut(window.firebaseAuth);
+                showNotification('Signed out successfully', 'success');
+            } catch (error) {
+                showNotification('Error signing out', 'error');
+            }
+        }
+
+        async function initializeUserData(user) {
+            const initialData = {
+                ...userData,
+                email: user.email,
+                displayName: user.displayName || user.email.split('@')[0],
+                createdAt: new Date().toISOString(),
+                lastActiveDate: new Date().toISOString()
+            };
+            
+            await window.firebaseUtils.setDoc(window.firebaseUtils.doc(window.firebaseDb, 'users', user.uid), initialData);
+        }
+
+        async function loadUserDataFromFirestore() {
+            if (!currentUser) return;
+            
+            try {
+                const userDoc = await window.firebaseUtils.getDoc(window.firebaseUtils.doc(window.firebaseDb, 'users', currentUser.uid));
+                if (userDoc.exists()) {
+                    userData = { ...userData, ...userDoc.data() };
+                    updateUI();
+                    updateSettingsUI();
+                }
+            } catch (error) {
+                console.error('Error loading user data:', error);
+            }
+        }
+
+        async function saveUserDataToFirestore() {
+            if (!currentUser) return;
+            
+            try {
+                await window.firebaseUtils.updateDoc(window.firebaseUtils.doc(window.firebaseDb, 'users', currentUser.uid), {
+                    ...userData,
+                    lastActiveDate: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('Error saving user data:', error);
+            }
+        }
+
+        function updateSettingsUI() {
+            document.getElementById('theme-select').value = userData.settings.theme;
+            document.getElementById('notifications-toggle').checked = userData.settings.notifications;
+            document.getElementById('sound-toggle').checked = userData.settings.soundEffects;
+            document.getElementById('motivation-select').value = userData.settings.motivationalStyle;
+        }
+
+        // Screen management
+        function showScreen(screenName) {
+            // Hide all screens
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            
+            // Show selected screen
+            document.getElementById(screenName + '-screen').classList.add('active');
+            currentScreen = screenName;
+            
+            // Update navigation
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.screen === screenName) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Update UI for specific screens
+            if (screenName === 'stats') {
+                updateStatsScreen();
+            } else if (screenName === 'blocker') {
+                updateBlockerScreen();
+            } else if (screenName === 'profile') {
+                updateProfileScreen();
+            }
+        }
+
+        // Timer functions
+        function startFocus() {
+            showScreen('focus');
+            timeRemaining = 1500; // 25 minutes
+            isTimerRunning = true;
+            isPaused = false;
+            
+            document.getElementById('pause-btn').classList.remove('hidden');
+            document.getElementById('resume-btn').classList.add('hidden');
+            
+            focusTimer = setInterval(updateTimer, 1000);
+            updateTimerDisplay();
+            updateTimerCircle();
+            updateMotivationalMessage();
+            
+            if (userData.settings.soundEffects) {
+                playSound('start');
+            }
+        }
+
+        function updateTimer() {
+            if (!isTimerRunning || isPaused) return;
+            
+            timeRemaining--;
+            updateTimerDisplay();
+            updateTimerCircle();
+            
+            // Update motivational message every 5 minutes
+            if (timeRemaining % 300 === 0) {
+                updateMotivationalMessage();
+            }
+            
+            if (timeRemaining <= 0) {
+                completeSession();
+            }
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            const display = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            document.getElementById('timer-display').textContent = display;
+            document.getElementById('focus-timer-display').textContent = display;
+        }
+
+        function updateTimerCircle() {
+            const totalTime = 1500; // 25 minutes
+            const progress = (totalTime - timeRemaining) / totalTime;
+            const circumference = 628; // 2 * π * r (r=100)
+            const offset = circumference * (1 - progress);
+            
+            const circles = document.querySelectorAll('.timer-circle');
+            circles.forEach(circle => {
+                circle.style.strokeDashoffset = offset;
+            });
+        }
+
+        function pauseTimer() {
+            isPaused = true;
+            document.getElementById('pause-btn').classList.add('hidden');
+            document.getElementById('resume-btn').classList.remove('hidden');
+            
+            if (userData.settings.soundEffects) {
+                playSound('pause');
+            }
+        }
+
+        function resumeTimer() {
+            isPaused = false;
+            document.getElementById('pause-btn').classList.remove('hidden');
+            document.getElementById('resume-btn').classList.add('hidden');
+            
+            if (userData.settings.soundEffects) {
+                playSound('resume');
+            }
+        }
+
+        function skipSession() {
+            if (confirm('Are you sure you want to skip this session?')) {
+                completeSession();
+            }
+        }
+
+        function completeSession() {
+            clearInterval(focusTimer);
+            isTimerRunning = false;
+            
+            // Calculate XP based on completion
+            const completionPercentage = (1500 - timeRemaining) / 1500;
+            const baseXP = 25;
+            const earnedXP = Math.floor(baseXP * completionPercentage);
+            
+            // Bonus XP for full completion
+            const bonusXP = completionPercentage === 1 ? 10 : 0;
+            const totalXP = earnedXP + bonusXP;
+            
+            // Update user data
+            const oldLevel = userData.level;
+            userData.xp += totalXP;
+            userData.totalSessions++;
+            userData.totalFocusTime += Math.floor((1500 - timeRemaining) / 60);
+            
+            // Update daily focus time
+            const today = new Date().toDateString();
+            if (!userData.dailyFocusTime[today]) {
+                userData.dailyFocusTime[today] = 0;
+            }
+            userData.dailyFocusTime[today] += Math.floor((1500 - timeRemaining) / 60);
+            
+            // Update weekly focus time
+            const weekStart = getWeekStart(new Date());
+            if (!userData.weeklyFocusTime[weekStart]) {
+                userData.weeklyFocusTime[weekStart] = 0;
+            }
+            userData.weeklyFocusTime[weekStart] += Math.floor((1500 - timeRemaining) / 60);
+            
+            // Update streak
+            updateStreak();
+            
+            // Check for level up
+            const leveledUp = checkLevelUp();
+            
+            // Check achievements
+            checkAchievements();
+            
+            // Save data
+            saveUserData();
+            saveUserDataToFirestore();
+            
+            // Show XP modal
+            document.getElementById('xp-gained').textContent = totalXP + ' XP';
+            
+            if (leveledUp) {
+                document.getElementById('level-up-message').style.display = 'block';
+            } else {
+                document.getElementById('level-up-message').style.display = 'none';
+            }
+            
+            document.getElementById('xp-modal').classList.add('active');
+            
+            // Play completion sound
+            if (userData.settings.soundEffects) {
+                playSound('complete');
+            }
+            
+            // Update UI
+            updateUI();
+        }
+
+        function playSound(type) {
+            // Create audio context for sound effects
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            const sounds = {
+                start: { frequency: 440, duration: 0.2 },
+                pause: { frequency: 330, duration: 0.1 },
+                resume: { frequency: 440, duration: 0.1 },
+                complete: { frequency: 660, duration: 0.5 }
+            };
+            
+            const sound = sounds[type];
+            if (!sound) return;
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = sound.frequency;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + sound.duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + sound.duration);
+        }
+
+        function showExitModal() {
+            document.getElementById('exit-modal').classList.add('active');
+        }
+
+        function cancelExit() {
+            document.getElementById('exit-modal').classList.remove('active');
+        }
+
+        function confirmExit() {
+            clearInterval(focusTimer);
+            isTimerRunning = false;
+            document.getElementById('exit-modal').classList.remove('active');
+            showScreen('home');
+        }
+
+        function closeXpModal() {
+            document.getElementById('xp-modal').classList.remove('active');
+            showScreen('home');
+        }
+
+        // Stats functions
+        function updateStatsScreen() {
+            // Update summary cards
+            document.getElementById('stats-total-sessions').textContent = userData.totalSessions;
+            document.getElementById('stats-total-time').textContent = formatTime(userData.totalFocusTime);
+            document.getElementById('stats-current-streak').textContent = userData.streak;
+            document.getElementById('stats-level').textContent = userData.level;
+            
+            // Show daily chart by default
+            showChart('daily');
+            
+            // Update achievements
+            updateAchievements();
+        }
+
+        function formatTime(minutes) {
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            
+            if (hours > 0) {
+                return `${hours}h ${mins}m`;
+            } else {
+                return `${mins}m`;
+            }
+        }
+
+        function showChart(type) {
+            // Update button states
+            document.getElementById('daily-chart-btn').classList.toggle('btn-primary', type === 'daily');
+            document.getElementById('daily-chart-btn').classList.toggle('text-white', type === 'daily');
+            document.getElementById('daily-chart-btn').classList.toggle('text-gray-400', type !== 'daily');
+            
+            document.getElementById('weekly-chart-btn').classList.toggle('btn-primary', type === 'weekly');
+            document.getElementById('weekly-chart-btn').classList.toggle('text-white', type === 'weekly');
+            document.getElementById('weekly-chart-btn').classList.toggle('text-gray-400', type !== 'weekly');
+            
+            // Update chart title
+            const titleElement = document.getElementById('chart-title');
+            titleElement.innerHTML = `<i class="fas fa-chart-line mr-2 text-purple-400"></i>${type === 'daily' ? 'Daily Focus Time' : 'Weekly Focus Time'}`;
+            
+            // Destroy existing chart
+            if (currentChart) {
+                currentChart.destroy();
+            }
+            
+            // Create new chart
+            const ctx = document.getElementById('stats-chart').getContext('2d');
+            
+            if (type === 'daily') {
+                createDailyChart(ctx);
+            } else {
+                createWeeklyChart(ctx);
+            }
+        }
+
+        function createDailyChart(ctx) {
+            const last7Days = [];
+            const focusData = [];
+            
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dateString = date.toDateString();
+                
+                last7Days.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+                focusData.push(userData.dailyFocusTime[dateString] || 0);
+            }
+            
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: last7Days,
+                    datasets: [{
+                        label: 'Focus Time (minutes)',
+                        data: focusData,
+                        borderColor: 'rgb(147, 51, 234)',
+                        backgroundColor: 'rgba(147, 51, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: 'rgb(147, 51, 234)',
+                        pointBorderColor: 'rgb(147, 51, 234)',
+                        pointHoverBackgroundColor: 'rgb(168, 85, 247)',
+                        pointHoverBorderColor: 'rgb(168, 85, 247)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'white',
+                                font: {
+                                    family: 'Inter'
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: 'white',
+                                font: {
+                                    family: 'Inter'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: 'white',
+                                font: {
+                                    family: 'Inter'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createWeeklyChart(ctx) {
+            const last4Weeks = [];
+            const focusData = [];
+            
+            for (let i = 3; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - (i * 7));
+                const weekStart = getWeekStart(date);
+                
+                last4Weeks.push('Week ' + (4 - i));
+                focusData.push(userData.weeklyFocusTime[weekStart] || 0);
+            }
+            
+            currentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: last4Weeks,
+                    datasets: [{
+                        label: 'Focus Time (minutes)',
+                        data: focusData,
+                        backgroundColor: 'rgba(147, 51, 234, 0.8)',
+                        borderColor: 'rgb(147, 51, 234)',
+                        borderWidth: 2,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'white',
+                                font: {
+                                    family: 'Inter'
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: 'white',
+                                font: {
+                                    family: 'Inter'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: 'white',
+                                font: {
+                                    family: 'Inter'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function getWeekStart(date) {
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = d.getDate() - day;
+            return new Date(d.setDate(diff)).toDateString();
+        }
+
+        // Blocker functions
+        function updateBlockerScreen() {
+            updateBlockedWebsitesList();
+            updateBlockerStatus();
+            initializeWebsiteBlocker();
+        }
+
+        function initializeWebsiteBlocker() {
+            // Inject CSS to block websites
+            if (blockerActive) {
+                injectBlockerCSS();
+                startWebsiteMonitoring();
+            } else {
+                removeBlockerCSS();
+                stopWebsiteMonitoring();
+            }
+        }
+
+        function injectBlockerCSS() {
+            // Remove existing blocker styles
+            const existingStyle = document.getElementById('website-blocker-style');
+            if (existingStyle) {
+                existingStyle.remove();
+            }
+
+            // Create CSS rules to block websites
+            const style = document.createElement('style');
+            style.id = 'website-blocker-style';
+            
+            let cssRules = '';
+            userData.blockedWebsites.forEach(website => {
+                // Block iframes and embeds from blocked websites
+                cssRules += `
+                    iframe[src*="${website}"],
+                    embed[src*="${website}"],
+                    object[data*="${website}"] {
+                        display: none !important;
+                    }
+                `;
+            });
+            
+            style.textContent = cssRules;
+            document.head.appendChild(style);
+        }
+
+        function removeBlockerCSS() {
+            const existingStyle = document.getElementById('website-blocker-style');
+            if (existingStyle) {
+                existingStyle.remove();
+            }
+        }
+
+        function startWebsiteMonitoring() {
+            // Monitor for navigation attempts to blocked websites
+            const originalOpen = window.open;
+            window.open = function(url, ...args) {
+                if (url && isWebsiteBlocked(url)) {
+                    showBlockedWebsiteModal(url);
+                    return null;
+                }
+                return originalOpen.call(this, url, ...args);
+            };
+
+            // Monitor for link clicks
+            document.addEventListener('click', handleLinkClick, true);
+            
+            // Monitor for form submissions
+            document.addEventListener('submit', handleFormSubmit, true);
+            
+            // Check current URL
+            if (isWebsiteBlocked(window.location.href)) {
+                showBlockedWebsiteModal(window.location.href);
+            }
+        }
+
+        function stopWebsiteMonitoring() {
+            document.removeEventListener('click', handleLinkClick, true);
+            document.removeEventListener('submit', handleFormSubmit, true);
+        }
+
+        function handleLinkClick(event) {
+            const link = event.target.closest('a');
+            if (link && link.href && isWebsiteBlocked(link.href)) {
+                event.preventDefault();
+                event.stopPropagation();
+                showBlockedWebsiteModal(link.href);
+            }
+        }
+
+        function handleFormSubmit(event) {
+            const form = event.target;
+            if (form.action && isWebsiteBlocked(form.action)) {
+                event.preventDefault();
+                event.stopPropagation();
+                showBlockedWebsiteModal(form.action);
+            }
+        }
+
+        function isWebsiteBlocked(url) {
+            if (!url || !blockerActive) return false;
+            
+            try {
+                const urlObj = new URL(url);
+                const hostname = urlObj.hostname.toLowerCase();
+                
+                return userData.blockedWebsites.some(blockedSite => {
+                    const cleanBlockedSite = blockedSite.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '');
+                    const cleanHostname = hostname.replace(/^www\./, '');
+                    
+                    return cleanHostname === cleanBlockedSite || 
+                           cleanHostname.endsWith('.' + cleanBlockedSite) ||
+                           cleanBlockedSite.includes(cleanHostname);
+                });
+            } catch (e) {
+                // If URL parsing fails, check if the string contains any blocked sites
+                const lowerUrl = url.toLowerCase();
+                return userData.blockedWebsites.some(blockedSite => 
+                    lowerUrl.includes(blockedSite.toLowerCase())
+                );
+            }
+        }
+
+        function showBlockedWebsiteModal(url) {
+            // Create and show a modal for blocked website
+            const modal = document.createElement('div');
+            modal.className = 'modal active';
+            modal.innerHTML = `
+                <div class="flex items-center justify-center w-full h-full p-4">
+                    <div class="modal-content glass-card p-6 rounded-2xl max-w-sm w-full text-center">
+                        <i class="fas fa-shield-alt text-6xl text-red-400 mb-4"></i>
+                        <h3 class="text-2xl font-bold mb-2 text-red-400">Website Blocked</h3>
+                        <p class="text-gray-400 mb-4">This website is blocked to help you stay focused.</p>
+                        <div class="bg-gray-700 p-3 rounded-lg mb-4">
+                            <code class="text-sm text-gray-300">${url}</code>
+                        </div>
+                        <div class="flex space-x-3">
+                            <button onclick="this.closest('.modal').remove()" class="flex-1 btn-primary text-white p-3 rounded-lg font-semibold">
+                                Stay Focused
+                            </button>
+                            <button onclick="temporaryUnblock('${url}'); this.closest('.modal').remove()" class="flex-1 bg-yellow-600 text-white p-3 rounded-lg hover:bg-yellow-700 transition duration-200 font-semibold">
+                                5 Min Break
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Auto-remove modal after 10 seconds
+            setTimeout(() => {
+                if (modal.parentNode) {
+                    modal.remove();
+                }
+            }, 10000);
+        }
+
+        function temporaryUnblock(url) {
+            // Temporarily disable blocker for 5 minutes
+            const originalBlockerState = blockerActive;
+            blockerActive = false;
+            removeBlockerCSS();
+            stopWebsiteMonitoring();
+            
+            showNotification('Website blocker disabled for 5 minutes', 'warning');
+            
+            // Re-enable after 5 minutes
+            setTimeout(() => {
+                blockerActive = originalBlockerState;
+                if (blockerActive) {
+                    initializeWebsiteBlocker();
+                    showNotification('Website blocker re-enabled', 'success');
+                }
+            }, 5 * 60 * 1000); // 5 minutes
+        }
+
+        function toggleBlocker() {
+            blockerActive = !blockerActive;
+            updateBlockerStatus();
+            initializeWebsiteBlocker();
+            
+            if (blockerActive) {
+                showNotification('Website Blocker Enabled', 'success');
+            } else {
+                showNotification('Website Blocker Disabled', 'warning');
+            }
+        }
+
+        function updateBlockerStatus() {
+            const icon = document.getElementById('blocker-icon');
+            const status = document.getElementById('blocker-status');
+            const description = document.getElementById('blocker-description');
+            const toggle = document.getElementById('blocker-toggle');
+            
+            if (blockerActive) {
+                icon.className = 'fas fa-shield-alt text-6xl text-green-400 forge-glow';
+                status.textContent = 'Blocker Active';
+                description.textContent = 'Website blocking is currently enabled';
+                toggle.textContent = 'Disable Blocker';
+                toggle.className = 'bg-green-600 text-white px-8 py-4 rounded-xl hover:bg-green-700 transition duration-200 font-semibold ripple-effect';
+            } else {
+                icon.className = 'fas fa-shield-alt text-6xl text-red-400 forge-glow';
+                status.textContent = 'Blocker Inactive';
+                description.textContent = 'Enable blocker to restrict access to distracting websites';
+                toggle.textContent = 'Enable Blocker';
+                toggle.className = 'bg-red-600 text-white px-8 py-4 rounded-xl hover:bg-red-700 transition duration-200 font-semibold ripple-effect';
+            }
+        }
+
+        function updateBlockedWebsitesList() {
+            const list = document.getElementById('blocked-websites-list');
+            list.innerHTML = '';
+            
+            userData.blockedWebsites.forEach((website, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between glass-card p-3 rounded-lg';
+                div.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-globe text-red-400 mr-3"></i>
+                        <div>
+                            <span class="font-medium">${website}</span>
+                            <div class="text-xs text-gray-400">https://${website}</div>
+                        </div>
+                    </div>
+                    <button onclick="removeBlockedWebsite(${index})" class="text-red-400 hover:text-red-300 p-2 rounded-lg hover:bg-red-400 hover:bg-opacity-20 transition duration-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function addBlockedWebsite() {
+            const input = document.getElementById('new-website-input');
+            let websiteUrl = input.value.trim();
+            
+            if (!websiteUrl) {
+                showNotification('Please enter a website URL', 'error');
+                return;
+            }
+            
+            // Clean up the URL
+            websiteUrl = websiteUrl.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '');
+            
+            // Validate URL format
+            if (!isValidDomain(websiteUrl)) {
+                showNotification('Please enter a valid domain name (e.g., youtube.com)', 'error');
+                return;
+            }
+            
+            if (!userData.blockedWebsites.includes(websiteUrl)) {
+                userData.blockedWebsites.push(websiteUrl);
+                input.value = '';
+                updateBlockedWebsitesList();
+                saveUserData();
+                saveUserDataToFirestore();
+                
+                // Update blocker if active
+                if (blockerActive) {
+                    injectBlockerCSS();
+                }
+                
+                showNotification(`${websiteUrl} added to blocked websites`, 'success');
+            } else {
+                showNotification(`${websiteUrl} is already blocked`, 'warning');
+            }
+        }
+
+        function removeBlockedWebsite(index) {
+            const websiteUrl = userData.blockedWebsites[index];
+            userData.blockedWebsites.splice(index, 1);
+            updateBlockedWebsitesList();
+            saveUserData();
+            saveUserDataToFirestore();
+            
+            // Update blocker if active
+            if (blockerActive) {
+                injectBlockerCSS();
+            }
+            
+            showNotification(`${websiteUrl} removed from blocked websites`, 'success');
+        }
+
+        function isValidDomain(domain) {
+            const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.([a-zA-Z]{2,}|[a-zA-Z]{2,}\.[a-zA-Z]{2,})$/;
+            return domainRegex.test(domain) || /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}$/.test(domain);
+        }
+
+        // Profile functions
+        function updateProfileScreen() {
+            document.getElementById('profile-level').textContent = userData.level;
+            document.getElementById('profile-xp').textContent = userData.xp;
+            document.getElementById('profile-streak').textContent = userData.streak;
+        }
+
+        function exportData() {
+            const dataStr = JSON.stringify(userData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `focusforge_data_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            showNotification('Data exported successfully', 'success');
+        }
+
+        function resetProgress() {
+            if (confirm('Are you sure you want to reset all progress? This action cannot be undone.')) {
+                userData = {
+                    xp: 0,
+                    level: 1,
+                    streak: 0,
+                    totalSessions: 0,
+                    totalFocusTime: 0,
+                    dailyFocusTime: {},
+                    weeklyFocusTime: {},
+                    achievements: [],
+                    blockedWebsites: ['instagram.com', 'facebook.com', 'twitter.com', 'youtube.com', 'tiktok.com', 'reddit.com', 'netflix.com'],
+                    lastActiveDate: null,
+                    dailyChallengeCompleted: false,
+                    settings: {
+                        theme: 'dark',
+                        notifications: true,
+                        soundEffects: true,
+                        motivationalStyle: 'zen'
+                    }
+                };
+                saveUserData();
+                saveUserDataToFirestore();
+                updateUI();
+                updateSettingsUI();
+                showNotification('Progress reset successfully', 'success');
+            }
+        }
+
+        // Gamification functions
+        function updateStreak() {
+            const today = new Date().toDateString();
+            const yesterday = new Date(Date.now() - 86400000).toDateString();
+            
+            if (userData.lastActiveDate === yesterday) {
+                userData.streak++;
+            } else if (userData.lastActiveDate !== today) {
+                userData.streak = 1;
+            }
+            
+            userData.lastActiveDate = today;
+        }
+
+        function checkLevelUp() {
+            const requiredXP = userData.level * 100;
+            if (userData.xp >= requiredXP) {
+                userData.level++;
+                userData.xp -= requiredXP;
+                showNotification(`🎉 Level Up! You reached level ${userData.level}!`, 'success');
+                return true;
+            }
+            return false;
+        }
+
+        function checkAchievements() {
+            const achievements = [
+                { id: 'first_session', name: 'First Steps', description: 'Complete your first focus session', icon: 'fas fa-baby', condition: () => userData.totalSessions >= 1 },
+                { id: 'streak_3', name: 'Consistent', description: 'Maintain a 3-day streak', icon: 'fas fa-fire', condition: () => userData.streak >= 3 },
+                { id: 'streak_7', name: 'Dedicated', description: 'Maintain a 7-day streak', icon: 'fas fa-medal', condition: () => userData.streak >= 7 },
+                { id: 'streak_30', name: 'Unstoppable', description: 'Maintain a 30-day streak', icon: 'fas fa-crown', condition: () => userData.streak >= 30 },
+                { id: 'sessions_10', name: 'Focused', description: 'Complete 10 focus sessions', icon: 'fas fa-target', condition: () => userData.totalSessions >= 10 },
+                { id: 'sessions_50', name: 'Dedicated Forger', description: 'Complete 50 focus sessions', icon: 'fas fa-hammer', condition: () => userData.totalSessions >= 50 },
+                { id: 'sessions_100', name: 'Master Forger', description: 'Complete 100 focus sessions', icon: 'fas fa-gem', condition: () => userData.totalSessions >= 100 },
+                { id: 'time_10h', name: 'Time Master', description: 'Focus for 10 hours total', icon: 'fas fa-clock', condition: () => userData.totalFocusTime >= 600 },
+                { id: 'time_50h', name: 'Time Lord', description: 'Focus for 50 hours total', icon: 'fas fa-hourglass-half', condition: () => userData.totalFocusTime >= 3000 },
+                { id: 'level_5', name: 'Ascending', description: 'Reach level 5', icon: 'fas fa-star', condition: () => userData.level >= 5 },
+                { id: 'level_10', name: 'Elite', description: 'Reach level 10', icon: 'fas fa-trophy', condition: () => userData.level >= 10 }
+            ];
+            
+            achievements.forEach(achievement => {
+                if (!userData.achievements.includes(achievement.id) && achievement.condition()) {
+                    userData.achievements.push(achievement.id);
+                    showNotification(`🏆 Achievement Unlocked: ${achievement.name}!`, 'success');
+                }
+            });
+        }
+
+        function updateAchievements() {
+            const grid = document.getElementById('achievements-grid');
+            grid.innerHTML = '';
+            
+            const achievements = [
+                { id: 'first_session', name: 'First Steps', description: 'Complete your first focus session', icon: 'fas fa-baby' },
+                { id: 'streak_3', name: 'Consistent', description: 'Maintain a 3-day streak', icon: 'fas fa-fire' },
+                { id: 'streak_7', name: 'Dedicated', description: 'Maintain a 7-day streak', icon: 'fas fa-medal' },
+                { id: 'streak_30', name: 'Unstoppable', description: 'Maintain a 30-day streak', icon: 'fas fa-crown' },
+                { id: 'sessions_10', name: 'Focused', description: 'Complete 10 focus sessions', icon: 'fas fa-target' },
+                { id: 'sessions_50', name: 'Dedicated Forger', description: 'Complete 50 focus sessions', icon: 'fas fa-hammer' },
+                { id: 'sessions_100', name: 'Master Forger', description: 'Complete 100 focus sessions', icon: 'fas fa-gem' },
+                { id: 'time_10h', name: 'Time Master', description: 'Focus for 10 hours total', icon: 'fas fa-clock' },
+                { id: 'time_50h', name: 'Time Lord', description: 'Focus for 50 hours total', icon: 'fas fa-hourglass-half' },
+                { id: 'level_5', name: 'Ascending', description: 'Reach level 5', icon: 'fas fa-star' },
+                { id: 'level_10', name: 'Elite', description: 'Reach level 10', icon: 'fas fa-trophy' }
+            ];
+            
+            achievements.forEach(achievement => {
+                const div = document.createElement('div');
+                const unlocked = userData.achievements.includes(achievement.id);
+                div.className = `achievement-card glass-card p-3 rounded-lg text-center ${unlocked ? 'unlocked achievement-unlock' : 'opacity-50'}`;
+                div.innerHTML = `
+                    <i class="${achievement.icon} text-2xl ${unlocked ? 'text-yellow-400' : 'text-gray-400'} mb-2"></i>
+                    <div class="text-xs font-semibold">${achievement.name}</div>
+                `;
+                div.title = achievement.description;
+                grid.appendChild(div);
+            });
+        }
+
+        function claimDailyReward() {
+            if (!userData.dailyChallengeCompleted && userData.totalSessions >= 3) {
+                userData.xp += 50;
+                userData.dailyChallengeCompleted = true;
+                document.getElementById('claim-daily-btn').disabled = true;
+                document.getElementById('claim-daily-btn').textContent = 'Claimed';
+                document.getElementById('claim-daily-btn').classList.remove('achievement-unlock');
+                saveUserData();
+                saveUserDataToFirestore();
+                updateUI();
+                showNotification('🎁 Daily challenge completed! +50 XP', 'success');
+            }
+        }
+
+        function updateMotivationalMessage() {
+            const style = userData.settings.motivationalStyle;
+            const messages = motivationalMessages[style] || motivationalMessages.zen;
+            const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+            document.getElementById('motivational-message').textContent = randomMessage;
+        }
+
+        // UI update functions
+        function updateUI() {
+            // Update home screen
+            document.getElementById('user-level').textContent = userData.level;
+            document.getElementById('current-xp').textContent = userData.xp;
+            document.getElementById('next-level-xp').textContent = userData.level * 100;
+            document.getElementById('streak-count').textContent = userData.streak;
+            document.getElementById('total-focus-time').textContent = formatTime(userData.totalFocusTime);
+            
+            // Update XP progress bar
+            const xpProgress = (userData.xp / (userData.level * 100)) * 100;
+            document.getElementById('xp-progress').style.width = xpProgress + '%';
+            
+            // Update daily challenge button
+            const claimBtn = document.getElementById('claim-daily-btn');
+            if (userData.dailyChallengeCompleted) {
+                claimBtn.disabled = true;
+                claimBtn.textContent = 'Claimed';
+                claimBtn.classList.remove('achievement-unlock');
+            } else if (userData.totalSessions >= 3) {
+                claimBtn.disabled = false;
+                claimBtn.classList.add('achievement-unlock');
+            }
+        }
+
+        // Data persistence
+        function saveUserData() {
+            localStorage.setItem('focusforge_userData', JSON.stringify(userData));
+        }
+
+        function loadUserData() {
+            const saved = localStorage.getItem('focusforge_userData');
+            if (saved) {
+                userData = { ...userData, ...JSON.parse(saved) };
+            }
+        }
+
+        // Utility functions
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notification-text');
+            
+            notificationText.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 4000);
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.code === 'Space' && currentScreen === 'focus' && isTimerRunning) {
+                e.preventDefault();
+                if (isPaused) {
+                    resumeTimer();
+                } else {
+                    pauseTimer();
+                }
+            }
+            
+            if (e.code === 'Escape' && currentScreen === 'focus' && isTimerRunning) {
+                e.preventDefault();
+                showExitModal();
+            }
+        });
+
+        // Prevent accidental page refresh during focus sessions
+        window.addEventListener('beforeunload', function(e) {
+            if (isTimerRunning && !isPaused) {
+                e.preventDefault();
+                e.returnValue = 'You have an active focus session. Are you sure you want to leave?';
+            }
+        });
+
+        // Service Worker for offline functionality
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                    console.log('ServiceWorker registration successful');
+                }, function(err) {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+
+        // Handle online/offline status
+        window.addEventListener('online', function() {
+            showNotification('Connection restored', 'success');
+        });
+
+        window.addEventListener('offline', function() {
+            showNotification('You are offline. Data will sync when connection is restored.', 'warning');
+        });
+    </script>
+</body>
+</html>
+
